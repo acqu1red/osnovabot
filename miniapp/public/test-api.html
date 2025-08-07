@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <script src="api.js"></script>
+</head>
+<body style="background: #18191c; color: #fff; font-family: Arial, sans-serif; padding: 20px;">
+    <h1>API Test Page</h1>
+    
+    <div id="status" style="margin: 20px 0; padding: 10px; background: #23272f; border-radius: 8px;">
+        <h3>Status:</h3>
+        <div id="api-status">Checking API...</div>
+    </div>
+    
+    <div style="margin: 20px 0;">
+        <h3>Test Actions:</h3>
+        <button onclick="testAddQuestion()" style="background: #23272f; color: #fff; border: none; padding: 10px; margin: 5px; border-radius: 8px; cursor: pointer;">Add Question</button>
+        <button onclick="testGetQuestions()" style="background: #23272f; color: #fff; border: none; padding: 10px; margin: 5px; border-radius: 8px; cursor: pointer;">Get Questions</button>
+        <button onclick="testCreateInvoice()" style="background: #23272f; color: #fff; border: none; padding: 10px; margin: 5px; border-radius: 8px; cursor: pointer;">Create Invoice</button>
+        <button onclick="clearData()" style="background: #ff4444; color: #fff; border: none; padding: 10px; margin: 5px; border-radius: 8px; cursor: pointer;">Clear Data</button>
+    </div>
+    
+    <div id="results" style="margin: 20px 0; padding: 10px; background: #23272f; border-radius: 8px; min-height: 200px;">
+        <h3>Results:</h3>
+        <pre id="results-content" style="color: #0af; white-space: pre-wrap;"></pre>
+    </div>
+
+    <script>
+        // Проверяем API при загрузке
+        window.onload = function() {
+            const statusDiv = document.getElementById('api-status');
+            if (window.api) {
+                statusDiv.innerHTML = '✅ API loaded successfully';
+                statusDiv.style.color = '#0f0';
+            } else {
+                statusDiv.innerHTML = '❌ API not loaded';
+                statusDiv.style.color = '#f00';
+            }
+        };
+
+        function logResult(data) {
+            const resultsDiv = document.getElementById('results-content');
+            resultsDiv.textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function testAddQuestion() {
+            try {
+                const question = {
+                    user_id: 123456,
+                    username: 'test_user',
+                    message: 'Test question from API test page',
+                    email: 'test@example.com',
+                    is_admin: false,
+                    created_at: new Date().toISOString()
+                };
+                
+                const result = await window.api.addQuestion(question);
+                logResult({ action: 'Add Question', result });
+            } catch (error) {
+                logResult({ action: 'Add Question', error: error.message });
+            }
+        }
+
+        async function testGetQuestions() {
+            try {
+                const questions = await window.api.getQuestions();
+                logResult({ action: 'Get Questions', questions });
+            } catch (error) {
+                logResult({ action: 'Get Questions', error: error.message });
+            }
+        }
+
+        async function testCreateInvoice() {
+            try {
+                const invoiceData = {
+                    user_id: 123456,
+                    username: 'test_user',
+                    email: 'test@example.com',
+                    tariff: '1m',
+                    amount: 1500,
+                    method: 'card'
+                };
+                
+                const result = await window.api.createLavaInvoice(invoiceData);
+                logResult({ action: 'Create Invoice', result });
+            } catch (error) {
+                logResult({ action: 'Create Invoice', error: error.message });
+            }
+        }
+
+        function clearData() {
+            localStorage.removeItem('catalyst_club_data');
+            window.api.initStorage();
+            logResult({ action: 'Clear Data', message: 'Data cleared successfully' });
+        }
+    </script>
+</body>
+</html> 

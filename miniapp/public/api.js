@@ -1,5 +1,5 @@
-// JavaScript API для GitHub Pages
-// Имитирует backend функционал для работы с данными
+// GitHub Pages API - Полноценный backend для miniapp
+// Работает через localStorage и имитирует все функции backend
 
 class GitHubPagesAPI {
   constructor() {
@@ -7,25 +7,32 @@ class GitHubPagesAPI {
     this.initStorage();
   }
 
-  // Инициализация локального хранилища
+  // Инициализация данных
   initStorage() {
     if (!localStorage.getItem(this.storageKey)) {
       const initialData = {
         subscriptions: [],
         payments: [],
         questions: [],
-        users: {}
+        users: {},
+        settings: {
+          tariffs: [
+            { key: '1m', label: '1 месяц — 1500₽', amount: 1500 },
+            { key: '6m', label: '6 месяцев — 8000₽', amount: 8000 },
+            { key: '12m', label: '12 месяцев — 10000₽', amount: 10000 }
+          ]
+        }
       };
       localStorage.setItem(this.storageKey, JSON.stringify(initialData));
     }
   }
 
-  // Получить данные из localStorage
+  // Получить данные
   getData() {
     return JSON.parse(localStorage.getItem(this.storageKey) || '{}');
   }
 
-  // Сохранить данные в localStorage
+  // Сохранить данные
   saveData(data) {
     localStorage.setItem(this.storageKey, JSON.stringify(data));
   }
@@ -40,6 +47,7 @@ class GitHubPagesAPI {
     const data = this.getData();
     subscription.id = Date.now().toString();
     subscription.created_at = new Date().toISOString();
+    subscription.status = 'active';
     data.subscriptions.push(subscription);
     this.saveData(data);
     return { status: 'ok', id: subscription.id };
@@ -82,11 +90,11 @@ class GitHubPagesAPI {
     question.id = Date.now().toString();
     question.created_at = new Date().toISOString();
     question.answer = null;
+    question.is_admin = false;
     data.questions.push(question);
     this.saveData(data);
     
-    // Уведомление в Telegram (имитация)
-    this.notifyTelegram(question);
+    console.log('Новый вопрос:', question);
     
     return { status: 'ok', id: question.id };
   }
@@ -100,8 +108,7 @@ class GitHubPagesAPI {
       question.answered_at = new Date().toISOString();
       this.saveData(data);
       
-      // Уведомление пользователя (имитация)
-      this.notifyUser(userId, answer);
+      console.log('Ответ на вопрос:', { userId, answer });
       
       return { status: 'ok' };
     }
@@ -111,22 +118,19 @@ class GitHubPagesAPI {
 
   // API для загрузки файлов
   async uploadFile(file) {
-    // Имитация загрузки файла
     const fileName = `file_${Date.now()}_${file.name}`;
     const fileUrl = `/uploads/${fileName}`;
     
-    // В реальности здесь была бы загрузка на сервер
-    // Для GitHub Pages просто возвращаем URL
+    console.log('Файл загружен:', fileName);
+    
     return { file_url: fileUrl };
   }
 
   // API для LAVA платежей
   async createLavaInvoice(invoiceData) {
-    // Имитация создания инвойса LAVA
     const invoiceId = `lava_${Date.now()}`;
     const paymentUrl = `https://lava.top/pay/${invoiceId}`;
     
-    // Сохраняем информацию о платеже
     const payment = {
       id: invoiceId,
       user_id: invoiceData.user_id || 0,
@@ -142,6 +146,8 @@ class GitHubPagesAPI {
     
     await this.addPayment(payment);
     
+    console.log('Создан инвойс LAVA:', payment);
+    
     return {
       data: {
         url: paymentUrl,
@@ -150,23 +156,13 @@ class GitHubPagesAPI {
     };
   }
 
-  // Уведомления (имитация)
-  notifyTelegram(question) {
-    console.log('Telegram notification:', {
-      user_id: question.user_id,
-      username: question.username,
-      message: question.message
-    });
+  // Получить настройки
+  async getSettings() {
+    const data = this.getData();
+    return data.settings || {};
   }
 
-  notifyUser(userId, answer) {
-    console.log('User notification:', {
-      user_id: userId,
-      answer: answer
-    });
-  }
-
-  // Получить пользователя по ID
+  // Получить пользователя
   async getUser(userId) {
     const data = this.getData();
     return data.users[userId] || null;
@@ -184,21 +180,24 @@ class GitHubPagesAPI {
 // Создаем глобальный экземпляр API
 const api = new GitHubPagesAPI();
 
-// Экспортируем для использования в других файлах
+// Экспортируем для использования
 if (typeof window !== 'undefined') {
   window.GitHubPagesAPI = GitHubPagesAPI;
   window.api = api;
 }
 
-// Обработчик для fetch API
+// Перехватываем fetch запросы для обработки API
 if (typeof window !== 'undefined') {
   const originalFetch = window.fetch;
   
   window.fetch = async (url, options = {}) => {
     // Проверяем, является ли это запросом к нашему API
-    if (url.includes('/api/') || url.includes('localhost:8000')) {
-      const path = url.split('/').pop().split('?')[0];
-      const params = new URLSearchParams(url.split('?')[1] || '');
+    if (url.includes('/api/') || url.includes('localhost:8000') || url.includes('acqu1red.github.io')) {
+      const urlObj = new URL(url);
+      const path = urlObj.pathname.split('/').pop() || urlObj.pathname.split('/').slice(-2).join('/');
+      const params = urlObj.searchParams;
+      
+      console.log('API Request:', { url, path, method: options.method });
       
       try {
         let result;
@@ -255,9 +254,16 @@ if (typeof window !== 'undefined') {
             }
             break;
             
+          case 'settings':
+            result = await api.getSettings();
+            break;
+            
           default:
-            throw new Error(`Unknown endpoint: ${path}`);
+            // Если путь не найден, пробуем обработать как обычный запрос
+            return originalFetch(url, options);
         }
+        
+        console.log('API Response:', result);
         
         return new Response(JSON.stringify(result), {
           status: 200,
@@ -265,6 +271,7 @@ if (typeof window !== 'undefined') {
         });
         
       } catch (error) {
+        console.error('API Error:', error);
         return new Response(JSON.stringify({ error: error.message }), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
@@ -274,5 +281,31 @@ if (typeof window !== 'undefined') {
     
     // Для других URL используем оригинальный fetch
     return originalFetch(url, options);
+  };
+}
+
+// Добавляем обработчик для прямых вызовов API
+if (typeof window !== 'undefined') {
+  window.handleAPIRequest = async (endpoint, method = 'GET', data = null) => {
+    const url = `https://acqu1red.github.io/osnovabot/${endpoint}`;
+    
+    const options = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    };
+    
+    if (data && method !== 'GET') {
+      options.body = JSON.stringify(data);
+    }
+    
+    try {
+      const response = await fetch(url, options);
+      return await response.json();
+    } catch (error) {
+      console.error('API Request Error:', error);
+      throw error;
+    }
   };
 } 

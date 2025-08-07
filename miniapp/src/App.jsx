@@ -29,7 +29,7 @@ const apiRequest = async (endpoint, options = {}) => {
     console.error('API Error:', error);
     
     // Fallback для продакшена - используем GitHub Pages API
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && window.api) {
       return await handleGitHubPagesAPI(endpoint, options);
     }
     
@@ -39,73 +39,58 @@ const apiRequest = async (endpoint, options = {}) => {
 
 // GitHub Pages API обработчик
 const handleGitHubPagesAPI = async (endpoint, options) => {
-  // Используем глобальный API из api.js
-  if (window.api) {
-    try {
-      switch (endpoint) {
-        case 'questions':
+  try {
+    switch (endpoint) {
+      case 'questions':
+        if (options.method === 'POST') {
+          const body = JSON.parse(options.body);
+          return await window.api.addQuestion(body);
+        } else {
           const urlParams = new URLSearchParams(window.location.search);
           const userId = urlParams.get('user_id');
           const admin = urlParams.get('admin') === 'true';
           return await window.api.getQuestions(userId, admin);
-          
-        case 'lava/create_invoice':
-          const body = JSON.parse(options.body);
-          return await window.api.createLavaInvoice(body);
-          
-        case 'questions/upload':
-          const formData = options.body;
-          const file = formData.get('file');
-          return await window.api.uploadFile(file);
-          
-        case 'questions/answer':
-          const answerBody = JSON.parse(options.body);
-          return await window.api.answerQuestion(answerBody.user_id, answerBody.answer);
-          
-        case 'questions':
-          if (options.method === 'POST') {
-            const questionBody = JSON.parse(options.body);
-            return await window.api.addQuestion(questionBody);
-          }
-          break;
-          
-        default:
-          throw new Error(`Unknown endpoint: ${endpoint}`);
-      }
-    } catch (error) {
-      console.error('GitHub Pages API Error:', error);
-      throw error;
+        }
+        
+      case 'lava/create_invoice':
+        const body = JSON.parse(options.body);
+        return await window.api.createLavaInvoice(body);
+        
+      case 'questions/upload':
+        const formData = options.body;
+        const file = formData.get('file');
+        return await window.api.uploadFile(file);
+        
+      case 'questions/answer':
+        const answerBody = JSON.parse(options.body);
+        return await window.api.answerQuestion(answerBody.user_id, answerBody.answer);
+        
+      case 'subscriptions':
+        if (options.method === 'POST') {
+          const subscriptionBody = JSON.parse(options.body);
+          return await window.api.addSubscription(subscriptionBody);
+        } else {
+          return await window.api.getSubscriptions();
+        }
+        
+      case 'payments':
+        if (options.method === 'POST') {
+          const paymentBody = JSON.parse(options.body);
+          return await window.api.addPayment(paymentBody);
+        } else {
+          return await window.api.getPayments();
+        }
+        
+      case 'settings':
+        return await window.api.getSettings();
+        
+      default:
+        throw new Error(`Unknown endpoint: ${endpoint}`);
     }
+  } catch (error) {
+    console.error('GitHub Pages API Error:', error);
+    throw error;
   }
-  
-  // Fallback на mock данные
-  return await handleMockAPI(endpoint, options);
-};
-
-// Mock API для fallback
-const handleMockAPI = async (endpoint, options) => {
-  const mockData = {
-    'questions': [
-      {
-        user_id: 123456,
-        username: "test_user",
-        message: "Тестовое сообщение",
-        created_at: new Date().toISOString(),
-        answer: null
-      }
-    ],
-    'lava/create_invoice': {
-      data: {
-        url: "https://lava.top/pay/test_invoice",
-        invoiceId: "test_" + Date.now()
-      }
-    }
-  };
-  
-  // Имитируем задержку сети
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  return mockData[endpoint] || { status: 'ok' };
 };
 
 const screens = {
@@ -130,6 +115,9 @@ function App() {
         i18n.changeLanguage(tgUser.language_code.slice(0, 2));
       }
     }
+    
+    // Инициализируем API
+    console.log('App initialized, API available:', !!window.api);
   }, [i18n]);
 
   let content;
@@ -171,7 +159,6 @@ function PayScreen({ setScreen, user, t }) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [invoiceUrl, setInvoiceUrl] = useState('');
 
   const tariffs = [
     { key: '1m', label: '1 месяц — 1500₽', amount: 1500 },
@@ -185,7 +172,6 @@ function PayScreen({ setScreen, user, t }) {
     { key: 'stars', label: 'Оплата в звездах Telegram' },
   ];
 
-  // Передаю invoiceUrl, тариф, email, username, method, сумму в ConfirmScreen через setScreen
   const handlePay = async () => {
     setLoading(true);
     setError('');
@@ -241,6 +227,7 @@ function PayScreen({ setScreen, user, t }) {
       }
     } catch (e) {
       setError('Ошибка оплаты');
+      console.error('Payment error:', e);
     }
     setLoading(false);
   };

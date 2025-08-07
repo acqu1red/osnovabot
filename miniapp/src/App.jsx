@@ -28,16 +28,61 @@ const apiRequest = async (endpoint, options = {}) => {
   } catch (error) {
     console.error('API Error:', error);
     
-    // Fallback для продакшена - используем mock данные
+    // Fallback для продакшена - используем GitHub Pages API
     if (process.env.NODE_ENV === 'production') {
-      return await handleMockAPI(endpoint, options);
+      return await handleGitHubPagesAPI(endpoint, options);
     }
     
     throw error;
   }
 };
 
-// Mock API для продакшена
+// GitHub Pages API обработчик
+const handleGitHubPagesAPI = async (endpoint, options) => {
+  // Используем глобальный API из api.js
+  if (window.api) {
+    try {
+      switch (endpoint) {
+        case 'questions':
+          const urlParams = new URLSearchParams(window.location.search);
+          const userId = urlParams.get('user_id');
+          const admin = urlParams.get('admin') === 'true';
+          return await window.api.getQuestions(userId, admin);
+          
+        case 'lava/create_invoice':
+          const body = JSON.parse(options.body);
+          return await window.api.createLavaInvoice(body);
+          
+        case 'questions/upload':
+          const formData = options.body;
+          const file = formData.get('file');
+          return await window.api.uploadFile(file);
+          
+        case 'questions/answer':
+          const answerBody = JSON.parse(options.body);
+          return await window.api.answerQuestion(answerBody.user_id, answerBody.answer);
+          
+        case 'questions':
+          if (options.method === 'POST') {
+            const questionBody = JSON.parse(options.body);
+            return await window.api.addQuestion(questionBody);
+          }
+          break;
+          
+        default:
+          throw new Error(`Unknown endpoint: ${endpoint}`);
+      }
+    } catch (error) {
+      console.error('GitHub Pages API Error:', error);
+      throw error;
+    }
+  }
+  
+  // Fallback на mock данные
+  return await handleMockAPI(endpoint, options);
+};
+
+// Mock API для fallback
 const handleMockAPI = async (endpoint, options) => {
   const mockData = {
     'questions': [

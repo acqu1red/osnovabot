@@ -1,0 +1,10 @@
+{
+  "files": {
+    "main.js": "/osnovabot/static/js/main.795ba15b.js",
+    "index.html": "/osnovabot/index.html",
+    "main.795ba15b.js.map": "/osnovabot/static/js/main.795ba15b.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.795ba15b.js"
+  ]
+}

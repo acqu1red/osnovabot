@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple API Test</title>
+    <script src="api.js"></script>
+    <script src="init.js"></script>
+</head>
+<body style="background: #18191c; color: #fff; font-family: Arial, sans-serif; padding: 20px;">
+    <h1>🔧 Simple API Test</h1>
+    
+    <div id="status" style="margin: 20px 0; padding: 15px; background: #23272f; border-radius: 8px;">
+        <h3>📊 Status:</h3>
+        <div id="api-status">Checking...</div>
+    </div>
+    
+    <div style="margin: 20px 0;">
+        <h3>🧪 Quick Tests:</h3>
+        <button onclick="quickTest()" style="background: #0af; color: #fff; border: none; padding: 12px; margin: 5px; border-radius: 8px; cursor: pointer;">Quick Test</button>
+        <button onclick="testStorage()" style="background: #0f0; color: #fff; border: none; padding: 12px; margin: 5px; border-radius: 8px; cursor: pointer;">Test Storage</button>
+        <button onclick="clearAll()" style="background: #f00; color: #fff; border: none; padding: 12px; margin: 5px; border-radius: 8px; cursor: pointer;">Clear All</button>
+    </div>
+    
+    <div id="results" style="margin: 20px 0; padding: 15px; background: #23272f; border-radius: 8px; min-height: 200px;">
+        <h3>📋 Results:</h3>
+        <pre id="results-content" style="color: #0af; white-space: pre-wrap; font-size: 12px;"></pre>
+    </div>
+
+    <script>
+        // Проверяем API при загрузке
+        window.onload = function() {
+            const statusDiv = document.getElementById('api-status');
+            
+            setTimeout(() => {
+                const apiAvailable = !!window.api;
+                const telegramAvailable = !!window.Telegram;
+                const localStorageAvailable = !!window.localStorage;
+                
+                statusDiv.innerHTML = `
+                    <div style="margin: 5px 0;">
+                        <span style="color: ${apiAvailable ? '#0f0' : '#f00'};">●</span> API: ${apiAvailable ? '✅ Available' : '❌ Not Available'}
+                    </div>
+                    <div style="margin: 5px 0;">
+                        <span style="color: ${telegramAvailable ? '#0f0' : '#f00'};">●</span> Telegram: ${telegramAvailable ? '✅ Available' : '❌ Not Available'}
+                    </div>
+                    <div style="margin: 5px 0;">
+                        <span style="color: ${localStorageAvailable ? '#0f0' : '#f00'};">●</span> localStorage: ${localStorageAvailable ? '✅ Available' : '❌ Not Available'}
+                    </div>
+                `;
+                
+                logResult({
+                    timestamp: new Date().toISOString(),
+                    status: 'Page loaded',
+                    api: apiAvailable,
+                    telegram: telegramAvailable,
+                    localStorage: localStorageAvailable
+                });
+            }, 1000);
+        };
+
+        function logResult(data) {
+            const resultsDiv = document.getElementById('results-content');
+            const timestamp = new Date().toLocaleTimeString();
+            resultsDiv.textContent += `[${timestamp}] ${JSON.stringify(data, null, 2)}\n\n`;
+        }
+
+        async function quickTest() {
+            logResult({ action: 'Quick test started' });
+            
+            try {
+                if (!window.api) {
+                    throw new Error('API not available');
+                }
+                
+                // Тест 1: Добавить вопрос
+                const question = {
+                    user_id: 123456,
+                    username: 'test_user',
+                    message: 'Test from simple page',
+                    email: 'test@example.com',
+                    is_admin: false,
+                    created_at: new Date().toISOString()
+                };
+                
+                const addResult = await window.api.addQuestion(question);
+                logResult({ action: 'Add question', result: addResult });
+                
+                // Тест 2: Получить вопросы
+                const questions = await window.api.getQuestions();
+                logResult({ action: 'Get questions', count: questions.length });
+                
+                // Тест 3: Создать инвойс
+                const invoiceData = {
+                    user_id: 123456,
+                    username: 'test_user',
+                    email: 'test@example.com',
+                    tariff: '1m',
+                    amount: 1500,
+                    method: 'card'
+                };
+                
+                const invoiceResult = await window.api.createLavaInvoice(invoiceData);
+                logResult({ action: 'Create invoice', result: invoiceResult });
+                
+                logResult({ action: 'Quick test completed', status: 'success' });
+                
+            } catch (error) {
+                logResult({ action: 'Quick test failed', error: error.message });
+            }
+        }
+
+        function testStorage() {
+            try {
+                const data = window.api.getData();
+                logResult({ action: 'Test storage', data: data });
+            } catch (error) {
+                logResult({ action: 'Test storage failed', error: error.message });
+            }
+        }
+
+        function clearAll() {
+            try {
+                localStorage.removeItem('catalyst_club_data');
+                window.api.initStorage();
+                logResult({ action: 'Clear all data', status: 'success' });
+            } catch (error) {
+                logResult({ action: 'Clear all failed', error: error.message });
+            }
+        }
+    </script>
+</body>
+</html> 

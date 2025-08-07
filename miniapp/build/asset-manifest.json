@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/static/js/main.7134b070.js",
-    "index.html": "/index.html",
-    "main.7134b070.js.map": "/static/js/main.7134b070.js.map"
+    "main.js": "/osnovabot/static/js/main.795ba15b.js",
+    "index.html": "/osnovabot/index.html",
+    "main.795ba15b.js.map": "/osnovabot/static/js/main.795ba15b.js.map"
   },
   "entrypoints": [
-    "static/js/main.7134b070.js"
+    "static/js/main.795ba15b.js"
   ]
 }

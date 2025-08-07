@@ -2,16 +2,53 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import './i18n';
 
-// API URL для разработки и продакшена
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://acqu1red.github.io/osnovabot' 
-  : 'http://localhost:8000';
-
-// Функция для выполнения API запросов
+// Простая функция для API запросов
 const apiRequest = async (endpoint, options = {}) => {
-  const url = `${API_BASE_URL}/${endpoint}`;
+  console.log('API Request:', { endpoint, options });
   
-  try {
+  // Для продакшена используем GitHub Pages API
+  if (process.env.NODE_ENV === 'production') {
+    if (!window.api) {
+      console.error('GitHub Pages API not available');
+      throw new Error('API not available');
+    }
+    
+    try {
+      switch (endpoint) {
+        case 'questions':
+          if (options.method === 'POST') {
+            const body = JSON.parse(options.body);
+            return await window.api.addQuestion(body);
+          } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            const userId = urlParams.get('user_id');
+            const admin = urlParams.get('admin') === 'true';
+            return await window.api.getQuestions(userId, admin);
+          }
+          
+        case 'lava/create_invoice':
+          const body = JSON.parse(options.body);
+          return await window.api.createLavaInvoice(body);
+          
+        case 'questions/upload':
+          const formData = options.body;
+          const file = formData.get('file');
+          return await window.api.uploadFile(file);
+          
+        case 'questions/answer':
+          const answerBody = JSON.parse(options.body);
+          return await window.api.answerQuestion(answerBody.user_id, answerBody.answer);
+          
+        default:
+          throw new Error(`Unknown endpoint: ${endpoint}`);
+      }
+    } catch (error) {
+      console.error('GitHub Pages API Error:', error);
+      throw error;
+    }
+  } else {
+    // Для разработки используем localhost
+    const url = `http://localhost:8000/${endpoint}`;
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -25,71 +62,6 @@ const apiRequest = async (endpoint, options = {}) => {
     }
     
     return await response.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    
-    // Fallback для продакшена - используем GitHub Pages API
-    if (process.env.NODE_ENV === 'production' && window.api) {
-      return await handleGitHubPagesAPI(endpoint, options);
-    }
-    
-    throw error;
-  }
-};
-
-// GitHub Pages API обработчик
-const handleGitHubPagesAPI = async (endpoint, options) => {
-  try {
-    switch (endpoint) {
-      case 'questions':
-        if (options.method === 'POST') {
-          const body = JSON.parse(options.body);
-          return await window.api.addQuestion(body);
-        } else {
-          const urlParams = new URLSearchParams(window.location.search);
-          const userId = urlParams.get('user_id');
-          const admin = urlParams.get('admin') === 'true';
-          return await window.api.getQuestions(userId, admin);
-        }
-        
-      case 'lava/create_invoice':
-        const body = JSON.parse(options.body);
-        return await window.api.createLavaInvoice(body);
-        
-      case 'questions/upload':
-        const formData = options.body;
-        const file = formData.get('file');
-        return await window.api.uploadFile(file);
-        
-      case 'questions/answer':
-        const answerBody = JSON.parse(options.body);
-        return await window.api.answerQuestion(answerBody.user_id, answerBody.answer);
-        
-      case 'subscriptions':
-        if (options.method === 'POST') {
-          const subscriptionBody = JSON.parse(options.body);
-          return await window.api.addSubscription(subscriptionBody);
-        } else {
-          return await window.api.getSubscriptions();
-        }
-        
-      case 'payments':
-        if (options.method === 'POST') {
-          const paymentBody = JSON.parse(options.body);
-          return await window.api.addPayment(paymentBody);
-        } else {
-          return await window.api.getPayments();
-        }
-        
-      case 'settings':
-        return await window.api.getSettings();
-        
-      default:
-        throw new Error(`Unknown endpoint: ${endpoint}`);
-    }
-  } catch (error) {
-    console.error('GitHub Pages API Error:', error);
-    throw error;
   }
 };
 
@@ -105,20 +77,49 @@ function App() {
   const { t, i18n } = useTranslation();
   const [screen, setScreen] = useState(screens.main);
   const [user, setUser] = useState(null);
+  const [apiReady, setApiReady] = useState(false);
 
   useEffect(() => {
+    console.log('App component mounted');
+    
+    // Проверяем API
+    const checkAPI = () => {
+      const isReady = process.env.NODE_ENV === 'production' ? !!window.api : true;
+      console.log('API ready check:', { 
+        production: process.env.NODE_ENV === 'production',
+        apiAvailable: !!window.api,
+        isReady 
+      });
+      setApiReady(isReady);
+    };
+    
+    // Проверяем сразу и через 1 секунду
+    checkAPI();
+    setTimeout(checkAPI, 1000);
+    
     // Получаем данные пользователя из Telegram WebApp
     if (window.Telegram && window.Telegram.WebApp) {
       const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
+      console.log('Telegram user:', tgUser);
       setUser(tgUser);
       if (tgUser?.language_code) {
         i18n.changeLanguage(tgUser.language_code.slice(0, 2));
       }
     }
-    
-    // Инициализируем API
-    console.log('App initialized, API available:', !!window.api);
   }, [i18n]);
+
+  // Если API не готов, показываем загрузку
+  if (!apiReady && process.env.NODE_ENV === 'production') {
+    return (
+      <div style={{ background: '#18191c', minHeight: '100vh', color: '#fff', borderRadius: 16, padding: 24, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <h2>Загрузка...</h2>
+          <p>Инициализация приложения</p>
+          <button onClick={() => window.location.reload()} style={btnStyle}>Обновить</button>
+        </div>
+      </div>
+    );
+  }
 
   let content;
   if (typeof screen === 'string') {
@@ -129,6 +130,7 @@ function App() {
   } else if (screen?.name === 'confirm') {
     content = <ConfirmScreen setScreen={setScreen} user={user} t={t} {...screen.props} />;
   }
+  
   return (
     <div style={{ background: '#18191c', minHeight: '100vh', color: '#fff', borderRadius: 16, padding: 24, fontFamily: 'inherit' }}>
       <header style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
@@ -226,7 +228,7 @@ function PayScreen({ setScreen, user, t }) {
         setError('Ошибка создания инвойса');
       }
     } catch (e) {
-      setError('Ошибка оплаты');
+      setError('Ошибка оплаты: ' + e.message);
       console.error('Payment error:', e);
     }
     setLoading(false);
@@ -303,9 +305,13 @@ function ChatScreen({ setScreen, user, t }) {
 
   useEffect(() => {
     if (!user) return;
+    console.log('Loading messages for user:', user.id);
     apiRequest(`questions?user_id=${user.id}`)
       .then(setMessages)
-      .catch(() => setMessages([]));
+      .catch((err) => {
+        console.error('Error loading messages:', err);
+        setMessages([]);
+      });
   }, [user]);
 
   const sendMessage = async () => {
@@ -322,8 +328,8 @@ function ChatScreen({ setScreen, user, t }) {
           body: form
         });
         file_url = data.file_url;
-      } catch {
-        setError('Ошибка загрузки файла');
+      } catch (err) {
+        setError('Ошибка загрузки файла: ' + err.message);
         setLoading(false);
         return;
       }
@@ -346,9 +352,12 @@ function ChatScreen({ setScreen, user, t }) {
       setFile(null);
       // Обновить сообщения
       apiRequest(`questions?user_id=${user.id}`)
-        .then(setMessages);
-    } catch {
-      setError('Ошибка отправки');
+        .then(setMessages)
+        .catch((err) => {
+          console.error('Error refreshing messages:', err);
+        });
+    } catch (err) {
+      setError('Ошибка отправки: ' + err.message);
     }
     setLoading(false);
   };
@@ -403,13 +412,21 @@ function AdminPanel({ setScreen, user, t }) {
           }
         });
         setUsers(Object.values(usersMap));
+      })
+      .catch((err) => {
+        console.error('Error loading admin data:', err);
+        setUsers([]);
       });
   }, []);
 
   useEffect(() => {
     if (!selectedUser) return;
     apiRequest(`questions?user_id=${selectedUser.user_id}&admin=true`)
-      .then(setMessages);
+      .then(setMessages)
+      .catch((err) => {
+        console.error('Error loading user messages:', err);
+        setMessages([]);
+      });
   }, [selectedUser]);
 
   const sendAnswer = async () => {
@@ -424,9 +441,12 @@ function AdminPanel({ setScreen, user, t }) {
       setAnswer('');
       // Обновить сообщения
       apiRequest(`questions?user_id=${selectedUser.user_id}&admin=true`)
-        .then(setMessages);
-    } catch {
-      setError('Ошибка отправки');
+        .then(setMessages)
+        .catch((err) => {
+          console.error('Error refreshing messages:', err);
+        });
+    } catch (err) {
+      setError('Ошибка отправки: ' + err.message);
     }
     setLoading(false);
   };

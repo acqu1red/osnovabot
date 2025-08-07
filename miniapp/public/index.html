@@ -14,6 +14,27 @@
     <title>CATALYST CLUB</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="%PUBLIC_URL%/api.js"></script>
+    <script src="%PUBLIC_URL%/init.js"></script>
+    <script>
+      // Отладка загрузки API
+      window.addEventListener('load', function() {
+        console.log('Page loaded');
+        console.log('API available:', !!window.api);
+        console.log('Telegram WebApp available:', !!window.Telegram);
+        if (window.Telegram) {
+          console.log('Telegram WebApp initialized');
+        }
+        
+        // Тестируем API
+        setTimeout(() => {
+          if (window.testAPI) {
+            window.testAPI().then(result => {
+              console.log('API test result:', result);
+            });
+          }
+        }, 1000);
+      });
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

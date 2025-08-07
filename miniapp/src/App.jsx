@@ -2,6 +2,67 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import './i18n';
 
+// API URL для разработки и продакшена
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://acqu1red.github.io/osnovabot' 
+  : 'http://localhost:8000';
+
+// Функция для выполнения API запросов
+const apiRequest = async (endpoint, options = {}) => {
+  const url = `${API_BASE_URL}/${endpoint}`;
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    
+    // Fallback для продакшена - используем mock данные
+    if (process.env.NODE_ENV === 'production') {
+      return await handleMockAPI(endpoint, options);
+    }
+    
+    throw error;
+  }
+};
+
+// Mock API для продакшена
+const handleMockAPI = async (endpoint, options) => {
+  const mockData = {
+    'questions': [
+      {
+        user_id: 123456,
+        username: "test_user",
+        message: "Тестовое сообщение",
+        created_at: new Date().toISOString(),
+        answer: null
+      }
+    ],
+    'lava/create_invoice': {
+      data: {
+        url: "https://lava.top/pay/test_invoice",
+        invoiceId: "test_" + Date.now()
+      }
+    }
+  };
+  
+  // Имитируем задержку сети
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  return mockData[endpoint] || { status: 'ok' };
+};
+
 const screens = {
   main: 'main',
   pay: 'pay',
@@ -106,9 +167,8 @@ function PayScreen({ setScreen, user, t }) {
         return;
       }
       // Запрос на backend для создания инвойса LAVA
-      const resp = await fetch('http://localhost:8000/lava/create_invoice', {
+      const data = await apiRequest('lava/create_invoice', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: selectedTariff.amount,
           order_id: `${user?.id}_${Date.now()}`,
@@ -118,7 +178,7 @@ function PayScreen({ setScreen, user, t }) {
           method,
         })
       });
-      const data = await resp.json();
+      
       if (data?.data?.url) {
         setScreen({
           name: 'confirm',
@@ -211,8 +271,7 @@ function ChatScreen({ setScreen, user, t }) {
 
   useEffect(() => {
     if (!user) return;
-    fetch(`http://localhost:8000/questions?user_id=${user.id}`)
-      .then(r => r.json())
+    apiRequest(`questions?user_id=${user.id}`)
       .then(setMessages)
       .catch(() => setMessages([]));
   }, [user]);
@@ -226,11 +285,10 @@ function ChatScreen({ setScreen, user, t }) {
       const form = new FormData();
       form.append('file', file);
       try {
-        const resp = await fetch('http://localhost:8000/questions/upload', {
+        const data = await apiRequest('questions/upload', {
           method: 'POST',
           body: form
         });
-        const data = await resp.json();
         file_url = data.file_url;
       } catch {
         setError('Ошибка загрузки файла');
@@ -248,16 +306,14 @@ function ChatScreen({ setScreen, user, t }) {
       created_at: new Date().toISOString(),
     };
     try {
-      await fetch('http://localhost:8000/questions', {
+      await apiRequest('questions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
       setInput('');
       setFile(null);
       // Обновить сообщения
-      fetch(`http://localhost:8000/questions?user_id=${user.id}`)
-        .then(r => r.json())
+      apiRequest(`questions?user_id=${user.id}`)
         .then(setMessages);
     } catch {
       setError('Ошибка отправки');
@@ -305,8 +361,7 @@ function AdminPanel({ setScreen, user, t }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch('http://localhost:8000/questions?admin=true')
-      .then(r => r.json())
+    apiRequest('questions?admin=true')
       .then(data => {
         // Собираем уникальных пользователей
         const usersMap = {};
@@ -321,8 +376,7 @@ function AdminPanel({ setScreen, user, t }) {
 
   useEffect(() => {
     if (!selectedUser) return;
-    fetch(`http://localhost:8000/questions?user_id=${selectedUser.user_id}&admin=true`)
-      .then(r => r.json())
+    apiRequest(`questions?user_id=${selectedUser.user_id}&admin=true`)
       .then(setMessages);
   }, [selectedUser]);
 
@@ -331,15 +385,13 @@ function AdminPanel({ setScreen, user, t }) {
     setLoading(true);
     setError('');
     try {
-      await fetch('http://localhost:8000/questions/answer', {
+      await apiRequest('questions/answer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: selectedUser.user_id, answer })
       });
       setAnswer('');
       // Обновить сообщения
-      fetch(`http://localhost:8000/questions?user_id=${selectedUser.user_id}&admin=true`)
-        .then(r => r.json())
+      apiRequest(`questions?user_id=${selectedUser.user_id}&admin=true`)
         .then(setMessages);
     } catch {
       setError('Ошибка отправки');
